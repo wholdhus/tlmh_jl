@@ -480,7 +480,7 @@ function redmrg(fname::String, nstates::Int;
             printif("Reconverging!", outputlevel)
             old_maxdim = maxlinkdim(psis_in[n])
             printif("Original state maximum dimension: $(old_maxdim)", outputlevel)
-            this_maxdim = maxdim[maxdim .>=x old_maxdim]
+            this_maxdim = maxdim[maxdim .>= old_maxdim]
             printif("Maxdims for $(n)th state: $(this_maxdim)", outputlevel)
             if n == 1
                 energies_out[1], psis_out[1] = dmrg(H, psis_in[1]; maxdim=this_maxdim, dmrg_kwargs...)
