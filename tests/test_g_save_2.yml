@@ -1,0 +1,16 @@
+Lx: 12
+Ly: 2
+t: 1.0
+parity: 0
+g: -0.6
+bc: -1
+maxdim: 500
+dmrg_params:
+    nstates: 5
+    nsweeps: 10
+    kdim: 10
+    cutoff: 1e-9
+    energy_tol: 1e-7
+    use_noise: true
+    weight: 1000.
+datafile: "tests/test_g_save_2.h5"

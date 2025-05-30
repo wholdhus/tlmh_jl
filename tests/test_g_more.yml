@@ -1,0 +1,10 @@
+old_file: "tests/test_g_save.h5"
+states: 10
+reconverge: True
+dmrg_params:
+    maxdim: [20, 100, 200]
+    nsweeps: 20
+    kdim: 10
+    cutoff: 1e-13
+    energy_tol: 1e-12
+    weight: 1000.0

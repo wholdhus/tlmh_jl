@@ -1,0 +1,15 @@
+Lx: 3
+Ly: 2
+t: 1.0
+parity: 0
+g: -3
+bc: 0
+maxdim: 100
+dmrg_params:
+    nstates: 3
+    nsweeps: 10
+    kdim: 10
+    cutoff: 1e-9
+    energy_tol: 1e-6
+    use_noise: true
+    weight: 1.0
