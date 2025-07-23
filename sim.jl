@@ -44,9 +44,13 @@ function main()
         
         maxdim = params["maxdim"]
         if isa(maxdim, Number)
-            maxdim=[min(div(maxdim, 6), 20), 
+            maxdim=[min(div(maxdim, 6), 20),
                     max(div(maxdim, 6), 20),
-                    div(maxdim, 3), 
+                    max(div(maxdim, 6), 20),
+                    div(maxdim, 3),
+                    div(maxdim, 3),
+                    div(maxdim, 3),
+                    2*div(maxdim, 3),   
                     2*div(maxdim, 3), 
                     maxdim]
         end
@@ -59,7 +63,11 @@ function main()
         display(dmrg_params)
         
         if haskey(params, "datafile")
-            energy, v = dmrg_e(t, g, dims, params["datafile"]; maxdim=maxdim, dmrg_params...)
+            if haskey(params, "u")
+                energy, v = dmrg_imp(t, g, dims, params["u"], params["imp_sites"], params["datafile"]; maxdim=maxdim, dmrg_params...)
+            else
+                energy, v = dmrg_e(t, g, dims, params["datafile"]; maxdim=maxdim, dmrg_params...)
+            end
         else
             energy, v = dmrg_e(t, g, dims; maxdim=maxdim, dmrg_params...)
         end

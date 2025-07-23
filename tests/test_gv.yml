@@ -1,7 +1,7 @@
 Lx: 3
 Ly: 2
 t: 1.0
-parity: 0
+parity: 1
 gs: [-3.1, -3.0, -2.9]
 bc: 0
 maxdim: 100

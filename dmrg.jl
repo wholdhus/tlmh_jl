@@ -57,12 +57,14 @@ function ent_entropy(psi, b; return_spectrum=false)
     s = orthogonalize(psi, b)
 	U,S,V = svd(s[b], (linkinds(s, b-1)..., siteinds(s, b)...))
 	SvN = 0.0
+    ps = zeros(dim(S,1))
 	for n=1:dim(S, 1)
   		p = S[n,n]^2
   		SvN -= p * log(p)
+        ps[n] = p
 	end
 	if return_spectrum
-	    return SvN, p
+	    return SvN, ps
 	else
 	    return SvN
     end
@@ -117,8 +119,11 @@ function get_psi0s(dims, sites, nstates, seed)
         else
             state = ["0" for n=1:N]
         end
-        if parity == 1
+        if parity == -1
+            println("Odd parity")
             state[1] = "1"
+        else
+            println("Even parity")
         end
         psi0s = [MPS() for n=1:nstates]
         if seed == "af" || seed == "fm"
@@ -133,8 +138,11 @@ function get_psi0s(dims, sites, nstates, seed)
         end
     else
         state = ["0" for n=1:N]
-        if parity == 1
+        if parity == -1
+            println("Odd parity")
             state[1] = "1"
+        else
+            println("Even parity")
         end
         psi0s = [random_mps(sites, state, linkdims=4) for n=1:nstates]
     end
@@ -392,6 +400,96 @@ function dmrg_e(t::Number, g::Number, dims::Vector,
 end
 
 
+function dmrg_imp(t::Number, g::Number, dims::Vector, u::Number, imp_sites::Vector,
+                fname::String;
+                seed::String="rand",
+                nstates::Int=1, nsweeps::Int=10,
+                maxdim::Vector{Int}=[10, 20, 100, 200],
+                energy_tol::Float64=1E-6,
+                cutoff::Float64=1E-7, outputlevel::Int=1,
+                kdim::Int=8, use_noise::Bool=false, force_maxdim::Bool=false,
+                force_gc::Bool=false, weight::Number=1000.0, simple_inds::Bool=false)
+    Lx, Ly, parity, bc = dims
+    Lx = Int(Lx)
+    Ly = Int(Ly)
+    parity = Int(parity)
+    N = Lx*Ly
+    mindim = 2
+    if force_maxdim
+        println("Forcing bond dimensions to be")
+        mindim = maxdim
+        println(mindim)
+    end
+    sites = siteinds("Fermion",N;conserve_nfparity=true)
+    psi0s = get_psi0s(dims, sites, nstates, seed)
+    psis = [MPS() for n=1:nstates]
+    printif("", outputlevel)
+
+    inds = ind_array(Lx, Ly; simple=simple_inds)    
+    energies = zeros(Float64, nstates)
+    observer = DMRGSizeObserver(energy_tol, force_gc)
+    if use_noise
+        noise = [1E-5, 1E-6, 1E-8, 10*energy_tol, energy_tol]
+    else
+        noise = [0.0]
+    end
+    printif("Initializing hdf5 file", outputlevel)
+    h5open(fname, "w") do fid
+        fid["dims"] = dims
+        fid["maxdim"] = maxdim
+        fid["energy_tol"] = energy_tol
+        fid["noise"] = noise
+        fid["kdim"] = kdim
+        fid["nstates"] = nstates
+        fid["nsweeps"] = nsweeps
+        fid["cutoff"] = cutoff
+        fid["g"] = g
+        fid["t"] = t
+    end
+
+    os = H_OpSum(t, g, dims, inds; u=u, imp_inds=imp_sites)
+    H = MPO(os, sites)
+    printif("Interacting MPO constructed!", outputlevel)
+    energies[1], psis[1] = dmrg(H, psi0s[1]; nsweeps, maxdim, cutoff,
+                                  mindim=mindim,
+				                  observer=observer, 
+				                  outputlevel=outputlevel,
+				                  noise=noise,
+				                  eigsolve_krylovdim=kdim
+				                  )
+    update_data(fname, "H", H)
+    update_data(fname, "E_0", energies[1])
+    update_data(fname, "psi_0", psis[1])
+	if nstates > 1
+	    printif("", outputlevel)
+	    printif("Finding excited states!", outputlevel)
+	    for n=2:nstates
+		    _, psis[n] = dmrg(H, psis[1:n-1], psi0s[n];
+						      nsweeps, maxdim, cutoff,
+                              mindim=mindim,
+				              observer=observer, 
+				              outputlevel=outputlevel,
+				              weight=weight,
+				              noise=noise,
+				              eigsolve_krylovdim=kdim
+				              )
+		    energies[n] = real(inner(psis[n]', H, psis[n]))
+            update_data(fname, "E_$(n-1)", energies[n])
+            update_data(fname, "psi_$(n-1)", psis[n])
+		    printif("", outputlevel)
+	    end
+    end
+    printif("Overlaps: ", outputlevel)
+    for n = 1:nstates
+        for m = 1:n
+            printif("<$(n-1)|$(m-1)>: $(abs(inner(psis[n]', psis[m])))", outputlevel)
+        end
+    end
+    printif("", outputlevel)
+    return energies, psis
+end
+
+
 function redmrg(fname::String, nstates::Int;
                 reconverge::Bool=true,
                 newname::Union{String, Nothing}=nothing,
@@ -448,13 +546,18 @@ function redmrg(fname::String, nstates::Int;
         fid["t"] = t
     end
     Lx, Ly, parity, bc = dims
+    Lx = Int(Lx)
+    Ly = Int(Ly)
     N = Lx*Ly
     inds = ind_array(Lx, Ly; simple=simple_inds)    
     sites = siteinds(psis0[1])
     # constructing guess MPS for new states
     state = ["0" for n=1:N]
-    if parity == 1
+    if parity == -1
+        println("Odd parity")
         state[1] = "1"
+    else
+        println("Even parity")
     end
     psis_in = [random_mps(sites, state, linkdims=2) for n=1:nstates]
     psis_out = [MPS() for n=1:nstates]
@@ -488,7 +591,7 @@ function redmrg(fname::String, nstates::Int;
                 _, psis_out[n] = dmrg(H, psis_out[1:n-1], psis_in[n]; 
                                 weight=weight,
                                 maxdim=this_maxdim,
-                                re_kwargs...)
+                                dmrg_kwargs...)
                 energies_out[n] = real(inner(psis_out[n]', H, psis_out[n])) # in case orthogonality penalty applied
             end
             printif("E_new, E_old, E_new-E_old: ", outputlevel)

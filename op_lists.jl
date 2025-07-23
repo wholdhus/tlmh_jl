@@ -1,4 +1,4 @@
-function H0_OpSum(t, dims, inds; periodic=true)
+function H0_OpSum(t, dims, inds; periodic=true, u=0, imp_inds=[])
     os = OpSum()
     Lx, Ly, parity, bc = dims
     Lx = Int(Lx)
@@ -35,6 +35,9 @@ function H0_OpSum(t, dims, inds; periodic=true)
 			    end
 			end
 		end
+	end
+	for i in imp_inds
+		os += u,"P",i
 	end
 	return os
 end
@@ -156,6 +159,11 @@ function add_P3_sum(os, g, dims, inds; periodic=true)
 	return os
 end
 
+function add_impurity(os, u, i)
+	os += u,"P",i
+	return os
+end
+
 
 function HI_OpSum(g, dims, inds; periodic=true)
     os = OpSum()
@@ -169,12 +177,13 @@ function HI_OpSum(g, dims, inds; periodic=true)
     return os
 end    
     
-function H_OpSum(t, g::Number, dims, inds; periodic=true)
+function H_OpSum(t, g::Number, dims, inds; periodic=true, u=0, imp_inds=[])
     if dims[4] == 0.0
         # println("OBC!")
         periodic = false
     end
-    os = H0_OpSum(t, dims, inds; periodic=periodic)
+    os = H0_OpSum(t, dims, inds; periodic=periodic, 
+				  u=u, imp_inds=imp_inds)
     os = add_P1_sum(os, g, dims, inds; periodic=periodic)
     os = add_P2_sum(os, g, dims, inds; periodic=periodic)
     os = add_P3_sum(os, g, dims, inds; periodic=periodic)
