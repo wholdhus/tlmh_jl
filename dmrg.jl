@@ -504,10 +504,29 @@ function redmrg(fname::String, nstates::Int;
     fid = h5open(fname, "r")
     dims = read(fid, "dims")
     noise = read(fid, "noise")
+
     nstates0 = read(fid, "nstates")
-   
+    psi0s = []
+    e0s = []
+    for n=0:(nstates0-1)
+        if "E_$n" in keys(fid)
+        else
+            println("True nstates0 is $n")
+            nstates0 = n
+            break
+        end
+    end
+    if nstates0 < 1
+        println("ERroR: no MPS in supplied file! Try rerunning DMRG, silly!")
+        return
+    end
+
+
     psis0 = [read(fid, "psi_$(n)", MPS) for n=0:(nstates0-1)]
     energies0 = [read(fid, "E_$(n)") for n=0:(nstates0-1)]
+   
+   
+   
     println("Energies before sorting: $(energies0)")
     sorting_inds = sortperm(energies0)
     energies0 = energies0[sorting_inds]
