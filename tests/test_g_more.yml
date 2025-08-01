@@ -1,5 +1,5 @@
 old_file: "tests/test_g_save.h5"
-states: 10
+nstates: 10
 reconverge: True
 dmrg_params:
     maxdim: [20, 100, 200]

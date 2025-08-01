@@ -11,4 +11,4 @@ dmrg_params:
     kdim: 10
     cutoff: 1e-9
     energy_tol: 1e-7
-    use_noise: true
+    noise: [1E-3, 1E-8, 1E-9]

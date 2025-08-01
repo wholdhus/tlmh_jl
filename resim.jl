@@ -21,7 +21,7 @@ function main()
         display(params)
         
         old_fname = params["old_file"]
-        nstates = params["states"]
+        nstates = params["nstates"]
 
         # optional args
         if "new_file" in keys(params)

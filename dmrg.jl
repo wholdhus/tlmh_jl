@@ -157,7 +157,7 @@ function dmrg_e(t::Number, g::Number, dims::Vector;
                 maxdim::Vector{Int}=[10, 20, 100, 200],
                 energy_tol::Float64=1E-11,
                 cutoff::Float64=1E-12, outputlevel::Int=1,
-                kdim::Int=8, use_noise::Bool=false, force_maxdim::Bool=false,
+                kdim::Int=8, noise::Vector{Float64}=[0.0], force_maxdim::Bool=false,
                 force_gc::Bool=false, weight::Number=1000.0,
                 simple_inds::Bool=false)
     Lx, Ly, parity, bc = dims
@@ -179,11 +179,6 @@ function dmrg_e(t::Number, g::Number, dims::Vector;
     os = H_OpSum(t, g, dims, inds)
     H = MPO(os, sites)
     observer = DMRGSizeObserver(energy_tol, force_gc)
-    if use_noise
-        noise = [1E-5, 1E-6, 1E-7, 1E-8, 10*energy_tol, energy_tol]
-    else
-        noise = [0.0]
-    end
     psi0s = get_psi0s(dims, sites, nstates, seed)
     psis = [MPS() for n=1:nstates]
     energies[1], psis[1] = dmrg(H, psi0s[1]; nsweeps, maxdim, cutoff,
@@ -228,7 +223,7 @@ function dmrg_e(t::Number, gs::Vector, dims::Vector,
                 maxdim::Vector{Int}=[10, 20, 100, 200],
                 energy_tol::Float64=1E-6,
                 cutoff::Float64=1E-7, outputlevel::Int=1,
-                kdim::Int=8, use_noise::Bool=false, force_maxdim::Bool=false,
+                kdim::Int=8, noise::Vector{Float64}=[0.0], force_maxdim::Bool=false,
                 force_gc::Bool=false, weight::Number=1000, simple_inds::Bool=false)
     Lx, Ly, parity, bc = dims
     Lx = Int(Lx)
@@ -248,11 +243,6 @@ function dmrg_e(t::Number, gs::Vector, dims::Vector,
     inds = ind_array(Lx, Ly; simple=simple_inds)    
     energies = zeros(Float64, nstates)
     observer = DMRGSizeObserver(energy_tol, force_gc)
-    if use_noise
-        noise = [1E-5, 1E-6, 1E-8, 10*energy_tol, energy_tol]
-    else
-        noise = [0.0]
-    end
     printif("Initializing hdf5 file", outputlevel)
     h5open(fname, "w") do fid
         fid["dims"] = dims
@@ -317,7 +307,7 @@ function dmrg_e(t::Number, g::Number, dims::Vector,
                 maxdim::Vector{Int}=[10, 20, 100, 200],
                 energy_tol::Float64=1E-6,
                 cutoff::Float64=1E-7, outputlevel::Int=1,
-                kdim::Int=8, use_noise::Bool=false, force_maxdim::Bool=false,
+                kdim::Int=8, noise::Vector{Float64}=[0.0], force_maxdim::Bool=false,
                 force_gc::Bool=false, weight::Number=1000.0, simple_inds::Bool=false)
     Lx, Ly, parity, bc = dims
     Lx = Int(Lx)
@@ -338,11 +328,6 @@ function dmrg_e(t::Number, g::Number, dims::Vector,
     inds = ind_array(Lx, Ly; simple=simple_inds)    
     energies = zeros(Float64, nstates)
     observer = DMRGSizeObserver(energy_tol, force_gc)
-    if use_noise
-        noise = [1E-5, 1E-6, 1E-8, 10*energy_tol, energy_tol]
-    else
-        noise = [0.0]
-    end
     printif("Initializing hdf5 file", outputlevel)
     h5open(fname, "w") do fid
         fid["dims"] = dims
@@ -407,7 +392,7 @@ function dmrg_imp(t::Number, g::Number, dims::Vector, u::Number, imp_sites::Vect
                 maxdim::Vector{Int}=[10, 20, 100, 200],
                 energy_tol::Float64=1E-6,
                 cutoff::Float64=1E-7, outputlevel::Int=1,
-                kdim::Int=8, use_noise::Bool=false, force_maxdim::Bool=false,
+                kdim::Int=8, noise::Vector{Float64}=[0.0], force_maxdim::Bool=false,
                 force_gc::Bool=false, weight::Number=1000.0, simple_inds::Bool=false)
     Lx, Ly, parity, bc = dims
     Lx = Int(Lx)
@@ -428,11 +413,6 @@ function dmrg_imp(t::Number, g::Number, dims::Vector, u::Number, imp_sites::Vect
     inds = ind_array(Lx, Ly; simple=simple_inds)    
     energies = zeros(Float64, nstates)
     observer = DMRGSizeObserver(energy_tol, force_gc)
-    if use_noise
-        noise = [1E-5, 1E-6, 1E-8, 10*energy_tol, energy_tol]
-    else
-        noise = [0.0]
-    end
     printif("Initializing hdf5 file", outputlevel)
     h5open(fname, "w") do fid
         fid["dims"] = dims

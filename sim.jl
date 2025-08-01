@@ -46,9 +46,6 @@ function main()
         if isa(maxdim, Number)
             maxdim=[min(div(maxdim, 6), 20),
                     max(div(maxdim, 6), 20),
-                    max(div(maxdim, 6), 20),
-                    div(maxdim, 3),
-                    div(maxdim, 3),
                     div(maxdim, 3),
                     2*div(maxdim, 3),   
                     2*div(maxdim, 3), 
