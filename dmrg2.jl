@@ -160,6 +160,78 @@ function gs_dmrg(t::Number, g::Number, dims::Vector,
     return energy, psi
 end
 
+
+function gs_dmrg(t::Number, g::Number, dims::Vector,
+                 fname::String, seed_fname::String; 
+                 nsweeps::Int=10,
+                 maxdim::Vector{Int}=[10, 20, 100, 200],
+                 energy_tol::Float64=1E-6,
+                 cutoff::Float64=1E-7, 
+                 outputlevel::Int=1,
+                 kdim::Int=8, 
+                 noise::Vector{Float64}=[0.0], 
+                 force_maxdim::Bool=false,
+                 force_gc::Bool=false, 
+                 simple_inds::Bool=true,
+                 save_H::Bool=false)
+    Lx, Ly, parity, bc = dims
+    Lx = Int(Lx)
+    Ly = Int(Ly)
+    parity = Int(parity)
+    N = Lx*Ly
+    mindim = 2
+    if force_maxdim
+        println("Forcing bond dimensions to be")
+        mindim = maxdim
+        println(mindim)
+    end
+    println("Reading seed state from $seed_fname")
+    sfid = h5open(seed_fname, "r")
+    if "psi" in keys(sfid)
+        psi0 = read(sfid, "psi", MPS) # should be coming from a prev. excited state run, so never "psi_0"
+    elseif "psi_0" in keys(sfid)
+        psi0 = read(sfid, "psi", MPS) # should be coming from a prev. excited state run, so never "psi_0"
+    end
+    close(sfid)
+    maxdim = maxdim[maxdim .>= maxlinkdim(psi0)]
+    println("New maxdim: $maxdim")
+    sites = siteinds(psi0)
+
+    inds = ind_array(Lx, Ly; simple=simple_inds)    
+    observer = DMRGSizeObserver(energy_tol, force_gc)
+    printif("Initializing hdf5 file", outputlevel)
+    h5open(fname, "w") do fid
+        fid["dims"] = dims
+        fid["inds"] = dims
+        fid["maxdim"] = maxdim
+        fid["energy_tol"] = energy_tol
+        fid["noise"] = noise
+        fid["kdim"] = kdim
+        fid["nsweeps"] = nsweeps
+        fid["cutoff"] = cutoff
+        fid["g"] = g
+        fid["t"] = t
+        fid["simple_inds"] = simple_inds
+    end
+    printif("Using g=$(g)", outputlevel)
+    os = H_OpSum(t, g, dims, inds)
+    H = MPO(os, sites)
+    printif("Interacting MPO constructed!", outputlevel)
+    energy, psi = dmrg(H, psi0; nsweeps, maxdim, cutoff,
+                                  mindim=mindim,
+				                  observer=observer, 
+				                  outputlevel=outputlevel,
+				                  noise=noise,
+				                  eigsolve_krylovdim=kdim)
+    if save_H
+        update_data(fname, "H", H)
+    end
+    update_data(fname, "energy", energy)
+    update_data(fname, "psi", psi)
+    return energy, psi
+end
+
+
 function es_dmrg(old_fnames::Vector{String},
                  fname::String; 
                  nsweeps::Int=10,
@@ -192,14 +264,109 @@ function es_dmrg(old_fnames::Vector{String},
     printif("Opening old state files", outputlevel)
     psis = [MPS() for ofn in old_fnames]
     for (i, ofn) in enumerate(old_fnames)
-        fid = h5open(ofn, "r")
-        Ef = read(fid, "energy")
-        printif("file: $(ofn)", outputlevel)
-        printif("energy: $(Ef)", outputlevel)
-        psis[i] = read(fid, "psi", MPS)
+        h5open(ofn, "r") do fid
+            if "energy" in keys(fid)
+                Ef = read(fid, "energy")
+            elseif "E_0" in keys(fid)
+                Ef = read(fid, "E_0")
+            end
+            printif("file: $(ofn)", outputlevel)
+            printif("energy: $(Ef)", outputlevel)
+            if "psi" in keys(fid)
+                psis[i] = read(fid, "psi", MPS)
+            elseif "psi_0" in keys(fid)
+                psis[i] = read(fid, "psi_0", MPS)
+            end
+        end
     end
     sites = siteinds(psis[1])
     psi0 = get_psi0(dims, sites)
+    printif("Initializing hdf5 file", outputlevel)
+    h5open(fname, "w") do fid
+        fid["dims"] = dims
+        fid["inds"] = inds
+        fid["maxdim"] = maxdim
+        fid["energy_tol"] = energy_tol
+        fid["noise"] = noise
+        fid["kdim"] = kdim
+        fid["nsweeps"] = nsweeps
+        fid["cutoff"] = cutoff
+        fid["g"] = g
+        fid["t"] = t
+        fid["other_statefiles"] = old_fnames
+        fid["simple_inds"] = simple_inds
+    end
+    printif("Using g=$(g)", outputlevel)
+    os = H_OpSum(t, g, dims, inds)
+    H = MPO(os, sites)
+    printif("Interacting MPO constructed!", outputlevel)
+    _, psi = dmrg(H, psis, psi0; nsweeps, maxdim, cutoff,
+                mindim=mindim,
+                observer=observer, 
+                outputlevel=outputlevel,
+                noise=noise,
+                eigsolve_krylovdim=kdim,
+                weight=weight)
+    energy = real(inner(psi', H, psi))   
+    update_data(fname, "energy", energy)
+    update_data(fname, "psi", psi)
+    return energy, psi
+end
+
+
+function es_dmrg(old_fnames::Vector{String}, fname::String, seed_fname::String; 
+                 nsweeps::Int=10,
+                 maxdim::Vector{Int}=[10, 20, 100, 200],
+                 energy_tol::Float64=1E-6,
+                 cutoff::Float64=1E-7, 
+                 outputlevel::Int=1,
+                 kdim::Int=8, 
+                 noise::Vector{Float64}=[0.0], 
+                 force_maxdim::Bool=false,
+                 force_gc::Bool=false,
+                 weight::Number=1000)
+    mindim = 2
+    if force_maxdim
+        println("Forcing bond dimensions to be")
+        mindim = maxdim
+        println(mindim)
+    end
+    observer = DMRGSizeObserver(energy_tol, force_gc)
+    fid = h5open(old_fnames[1])
+    t = read(fid, "t")
+    g = read(fid, "g")
+    dims = read(fid, "dims")
+    Lx = Int(dims[1])
+    Ly = Int(dims[2])
+    simple_inds = read(fid, "simple_inds")
+    inds = ind_array(Lx, Ly; simple=simple_inds)    
+    printif("From first file: t=$t, g=$g", outputlevel)
+    printif("dims = $(dims)", outputlevel)
+    printif("Opening old state files", outputlevel)
+    psis = [MPS() for ofn in old_fnames]
+    for (i, ofn) in enumerate(old_fnames)
+        h5open(ofn, "r") do fid
+            if "energy" in keys(fid)
+                Ef = read(fid, "energy")
+            elseif "E_0" in keys(fid)
+                Ef = read(fid, "E_0")
+            end
+            printif("file: $(ofn)", outputlevel)
+            printif("energy: $(Ef)", outputlevel)
+            if "psi" in keys(fid)
+                psis[i] = read(fid, "psi", MPS)
+            elseif "psi_0" in keys(fid)
+                psis[i] = read(fid, "psi_0", MPS)
+            end
+        end
+    end
+    sites = siteinds(psis[1])
+    sfid = h5open(seed_fname, "r")
+    psi0 = read(sfid, "psi", MPS) # should be coming from a prev. excited state run, so never "psi_0"
+    close(sfid)
+    println("Obtained seed state from $(seed_fname)")
+    maxdim = maxdim[maxdim .>= maxlinkdim(psi0)]
+    println("New maxdim: $maxdim")
     printif("Initializing hdf5 file", outputlevel)
     h5open(fname, "w") do fid
         fid["dims"] = dims

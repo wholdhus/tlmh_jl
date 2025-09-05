@@ -1,0 +1,9 @@
+old_fnames: ["test2.h5"]
+fname: "test_es.h5"
+maxdim: 100
+dmrg_params:
+    nsweeps: 10
+    kdim: 10
+    cutoff: 1e-9
+    energy_tol: 1e-7
+    noise: [1E-3, 1E-8, 1E-9]
